@@ -1,4 +1,4 @@
-//#!/bin/sh -c c++ main.cpp -lnekrk -locca -o main && ./main
+//#!/bin/sh -c c++ main.cpp -lnekRK -locca -o main && gpu-on && ./main; gpu-off; sensors | rg GPU
 #include <cstddef>
 using usize = size_t ;
 using f64 = double;
@@ -8,7 +8,7 @@ using f64 = double;
 auto main(int argc, const char **argv) -> int {
 	using namespace ReactionKinetics;
 	occa::device device((string)"{mode: 'Serial', 'kernel/compiler': 'clang', 'kernel/compiler_language': 'C++'}");
-	auto reaction_kinetics = compile("Fuego", "grimech30", device, "", Reference{1., 1., 1., 1., 1.});
+	auto reaction_kinetics = setup("Fuego", "grimech30", device, "", Reference{1., 1., 1., 1., 1.});
 	f64 pressure = 101325.;
 	f64 temperature = 1000.;
 	const usize S = 53;
