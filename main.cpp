@@ -1,4 +1,4 @@
-//#!/bin/sh -c c++ main.cpp -lnekRK -locca -o main && gpu-on && ./main; gpu-off; sensors | rg GPU
+//#!/bin/sh -c c++ main.cpp -lnekRK -locca -o /tmp/nekrk && gpu-on && /tmp/nekrk; gpu-off; sensors | rg GPU
 #include <cstddef>
 using usize = size_t ;
 using f64 = double;
@@ -13,8 +13,8 @@ auto main(int argc, const char **argv) -> int {
 	f64 temperature = 1000.;
 	const usize S = 53;
 	f64 amounts[S] = {};
-	/// !!! WARNING !!! C introduces undefined behavior by allowing to use uninitialized arrays and not zero initializing by default !!!
-	{unsigned int i=0; while(i<S) { amounts[i] = 0.; i+=1; }}
+	/// !!! /!\ WARNING /!\ !!! C introduces undefined behavior by allowing to use uninitialized arrays and not zero initializing by default !!!
+	for(int i=0; i<S; i+=1) { amounts[i] = 0.; }
 	amounts[/*O2*/3] = 2./5.;
 	amounts[/*CH4*/13] = 1./5.;
 	amounts[/*Ar*/48] = 2./5.;
