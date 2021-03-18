@@ -18,8 +18,8 @@ auto main(int argc, const char **argv) -> int {
 	mass_fractions[/*CH4*/13] = 1./5.;
 	mass_fractions[/*Ar*/48] = 2./5.;
 
-	//const usize N = 1;
-	const usize N = 100000;
+	const usize N = 1;
+	//const usize N = 100000;
 
 	f64 pressures[N];
 	for(usize i=0; i<N; i+=1) pressures[i] = pressure;
@@ -41,21 +41,21 @@ auto main(int argc, const char **argv) -> int {
 		for(usize i=0; i<species_len; i+=1) for(int id=0; id<len; id+=1) contiguous_mass_fractions_arrays[i*len+id] = mass_fractions_arrays[i][id];
 		device_contiguous_mass_fractions_arrays.copyFrom(contiguous_mass_fractions_arrays);
 	}
-	auto device_dt_heat = device.malloc<f64>(len);
-	auto device_dt_contiguous_mass_fractions_arrays = device.malloc<f64>(species_len*len);
+	auto device_contiguous_wdot_arrays = device.malloc<f64>(species_len*len);
+	auto device_heat_release_rate = device.malloc<f64>(len);
 
 	production_rates(reaction_kinetics, len,
-																device_pressure, device_temperature, device_contiguous_mass_fractions_arrays,
-																/*&mut*/ device_dt_heat, /*&mut*/ device_dt_contiguous_mass_fractions_arrays);
+															device_pressure, device_temperature, device_contiguous_mass_fractions_arrays,
+									/*&mut*/ device_contiguous_wdot_arrays, /*&mut*/ device_heat_release_rate);
 
-	f64 dt_heat[len];
-	device_dt_heat.copyTo(dt_heat);
+	f64 /*dt_mass*/wdot[species_len][len]; // V*dtω*W: mass rate
+	f64 contiguous_wdot_arrays[species_len*len];
+	device_contiguous_wdot_arrays.copyTo(contiguous_wdot_arrays);
+	for(usize i=0; i<species_len; i+=1) for(usize id=0; id<len; id+=1) wdot[i][id] = contiguous_wdot_arrays[i*len+id];
 
-	f64 dt_mass_fractions[species_len][len];
-	f64 dt_contiguous_mass_fractions_arrays[species_len*len];
-	device_dt_contiguous_mass_fractions_arrays.copyTo(dt_contiguous_mass_fractions_arrays);
-	for(usize i=0; i<species_len; i+=1) for(usize id=0; id<len; id+=1) dt_mass_fractions[i][id] = dt_contiguous_mass_fractions_arrays[i*len+id];
+	f64 heat_release_rate[len];
+	device_heat_release_rate.copyTo(heat_release_rate);
 
-	for(usize i=0; i<species_len-1; i++) printf("%e ", dt_mass_fractions[i][0]);
+	for(usize i=0; i<species_len-1; i++) printf("%e ", wdot[i][0]);
 	return 0;
 }
