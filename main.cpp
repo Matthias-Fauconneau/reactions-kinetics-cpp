@@ -2,61 +2,60 @@
 #include <cstddef>
 using usize = size_t ;
 using f64 = double;
-#define Vec vector
 #include <nekrk.h>
 
 auto main(int argc, const char **argv) -> int {
-	using namespace ReactionKinetics;
+	using namespace nekRK;
 	occa::device device((string)"{mode: 'Serial', 'kernel/compiler': 'clang', 'kernel/compiler_language': 'C++'}");
-	auto reaction_kinetics = setup("Fuego", "grimech30", device, "", Reference{1., 1., 1., 1., 1.});
+	auto reaction_kinetics = setup("Fuego", "grimech30", device, {}, /*Reference{*/1., 1., 1., 1., 1., 1./*}*/);
 	f64 pressure = 101325.;
 	f64 temperature = 1000.;
-	const usize S = 53;
-	f64 amounts[S] = {};
+	const usize species_len = 53;
+	f64 mass_fractions[species_len] = {};
 	/// !!! /!\ WARNING /!\ !!! C introduces undefined behavior by allowing to use uninitialized arrays and not zero initializing by default !!!
-	for(int i=0; i<S; i+=1) { amounts[i] = 0.; }
-	amounts[/*O2*/3] = 2./5.;
-	amounts[/*CH4*/13] = 1./5.;
-	amounts[/*Ar*/48] = 2./5.;
+	for(int i=0; i<species_len; i+=1) { mass_fractions[i] = 0.; }
+	mass_fractions[/*O2*/3] = 2./5.;
+	mass_fractions[/*CH4*/13] = 1./5.;
+	mass_fractions[/*Ar*/48] = 2./5.;
 
 	//const usize N = 1;
 	const usize N = 100000;
 
-	Vec<f64> pressures(N);
+	f64 pressures[N];
 	for(usize i=0; i<N; i+=1) pressures[i] = pressure;
 
-	Vec<f64> temperatures(N);
+	f64 temperatures[N];
 	for(usize i=0; i<N; i+=1) temperatures[i] = temperature;
 
-	Vec<f64> amounts_arrays[S]; for(usize i=0; i<S; i++) amounts_arrays[i] = Vec<f64>(N);
-	for(usize i=0; i<S; i++) for(usize id=0; id<N; id+=1) amounts_arrays[i][id] = amounts[i];
+	f64 mass_fractions_arrays[species_len][N];
+	for(usize i=0; i<species_len; i++) for(usize id=0; id<N; id+=1) mass_fractions_arrays[i][id] = mass_fractions[i];
 
 	const usize len = N;
   auto device_pressure = device.malloc<f64>(len);
-	device_pressure.copyFrom(pressures.data());
+	device_pressure.copyFrom(pressures);
 	auto device_temperature = device.malloc<f64>(len);
-	device_temperature.copyFrom(temperatures.data());
-	auto device_contiguous_amounts_arrays = device.malloc<f64>(S*len);
+	device_temperature.copyFrom(temperatures);
+	auto device_contiguous_mass_fractions_arrays = device.malloc<f64>(species_len*len);
 	{
-		auto contiguous_amounts_arrays = Vec<f64>(S*len);
-		for(usize i=0; i<S; i+=1) for(int id=0; id<len; id+=1) contiguous_amounts_arrays[i*len+id] = amounts_arrays[i][id];
-		device_contiguous_amounts_arrays.copyFrom(contiguous_amounts_arrays.data());
+		f64 contiguous_mass_fractions_arrays[species_len*len];
+		for(usize i=0; i<species_len; i+=1) for(int id=0; id<len; id+=1) contiguous_mass_fractions_arrays[i*len+id] = mass_fractions_arrays[i][id];
+		device_contiguous_mass_fractions_arrays.copyFrom(contiguous_mass_fractions_arrays);
 	}
-	auto device_dt_temperature = device.malloc<f64>(len);
-	auto device_dt_contiguous_amounts_arrays = device.malloc<f64>(S*len);
+	auto device_dt_heat = device.malloc<f64>(len);
+	auto device_dt_contiguous_mass_fractions_arrays = device.malloc<f64>(species_len*len);
 
 	production_rates(reaction_kinetics, len,
-																device_pressure, device_temperature, device_contiguous_amounts_arrays,
-																/*&mut*/ device_dt_temperature, /*&mut*/ device_dt_contiguous_amounts_arrays);
+																device_pressure, device_temperature, device_contiguous_mass_fractions_arrays,
+																/*&mut*/ device_dt_heat, /*&mut*/ device_dt_contiguous_mass_fractions_arrays);
 
-	auto dt_temperature = Vec<f64>(len);
-	device_dt_temperature.copyTo(dt_temperature.data());
+	f64 dt_heat[len];
+	device_dt_heat.copyTo(dt_heat);
 
-	Vec<f64> dt_amounts[S]; for(usize i=0; i<S; i++) dt_amounts[i] = Vec<f64>(len);
-	auto dt_contiguous_amounts_arrays = Vec<f64>(S*len);
-	device_dt_contiguous_amounts_arrays.copyTo(dt_contiguous_amounts_arrays.data());
-	for(usize i=0; i<S; i+=1) for(usize id=0; id<len; id+=1) dt_amounts[i][id] = dt_contiguous_amounts_arrays[i*len+id];
+	f64 dt_mass_fractions[species_len][len];
+	f64 dt_contiguous_mass_fractions_arrays[species_len*len];
+	device_dt_contiguous_mass_fractions_arrays.copyTo(dt_contiguous_mass_fractions_arrays);
+	for(usize i=0; i<species_len; i+=1) for(usize id=0; id<len; id+=1) dt_mass_fractions[i][id] = dt_contiguous_mass_fractions_arrays[i*len+id];
 
-	for(usize i=0; i<S-1; i++) printf("%e ", dt_amounts[i][0]);
+	for(usize i=0; i<species_len-1; i++) printf("%e ", dt_mass_fractions[i][0]);
 	return 0;
 }
