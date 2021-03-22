@@ -1,4 +1,5 @@
 //#!/bin/sh -c c++ main.cpp -lnekRK -locca -o /tmp/nekrk && gpu-on && /tmp/nekrk; gpu-off; sensors | rg GPU
+//watchexec -e cpp,okl 'sudo make -j9 -l8 install -C ~/nekRK/build && c++ main.cpp -lnekrk -locca -g -o /tmp/nekrk gpu-on && /tmp/nekrk; gpu-off; sensors | rg GPU'
 #include <cstddef>
 using usize = size_t ;
 using f64 = double;
@@ -7,7 +8,6 @@ using f64 = double;
 auto main(int argc, const char **argv) -> int {
 	using namespace nekRK;
 	occa::device device((string)"{mode: 'Serial', 'kernel/compiler': 'clang', 'kernel/compiler_language': 'C++'}");
-	auto reaction_kinetics = setup("Fuego", "grimech30", device, {}, /*Reference{*/1., 1., 1., 1., 1., 1./*}*/);
 	f64 pressure = 101325.;
 	f64 temperature = 1000.;
 	const usize species_len = 53;
@@ -18,22 +18,18 @@ auto main(int argc, const char **argv) -> int {
 	mass_fractions[/*CH4*/13] = 1./5.;
 	mass_fractions[/*Ar*/48] = 2./5.;
 
-	const usize N = 1;
-	//const usize N = 100000;
+	const usize len = 1;
+	//const usize len = 100000;
 
-	f64 pressures[N];
-	for(usize i=0; i<N; i+=1) pressures[i] = pressure;
+	auto reaction_kinetics = setup("Fuego", "grimech30", device, {}, /*Reference{*/1., 1., 1., 1., 1., 1./*}*/, len);
 
-	f64 temperatures[N];
-	for(usize i=0; i<N; i+=1) temperatures[i] = temperature;
+	f64 temperatures[len];
+	for(usize i=0; i<len; i+=1) temperatures[i] = temperature;
 
-	f64 mass_fractions_arrays[species_len][N];
-	for(usize i=0; i<species_len; i++) for(usize id=0; id<N; id+=1) mass_fractions_arrays[i][id] = mass_fractions[i];
+	f64 mass_fractions_arrays[species_len][len];
+	for(usize i=0; i<species_len; i++) for(usize id=0; id<len; id+=1) mass_fractions_arrays[i][id] = mass_fractions[i];
 
-	const usize len = N;
-  auto device_pressure = device.malloc<f64>(len);
-	device_pressure.copyFrom(pressures);
-	auto device_temperature = device.malloc<f64>(len);
+  auto device_temperature = device.malloc<f64>(len);
 	device_temperature.copyFrom(temperatures);
 	auto device_contiguous_mass_fractions_arrays = device.malloc<f64>(species_len*len);
 	{
@@ -44,8 +40,8 @@ auto main(int argc, const char **argv) -> int {
 	auto device_contiguous_wdot_arrays = device.malloc<f64>(species_len*len);
 	auto device_heat_release_rate = device.malloc<f64>(len);
 
-	production_rates(reaction_kinetics, len,
-															device_pressure, device_temperature, device_contiguous_mass_fractions_arrays,
+	production_rates(reaction_kinetics, pressure,
+									 device_temperature, device_contiguous_mass_fractions_arrays,
 									/*&mut*/ device_contiguous_wdot_arrays, /*&mut*/ device_heat_release_rate);
 
 	f64 /*dt_mass*/wdot[species_len][len]; // V*dtω*W: mass rate
